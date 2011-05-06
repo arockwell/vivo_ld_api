@@ -41,6 +41,20 @@ where
 }
 limit 10
 EOH
+  },
+  {
+    :path => 'person',
+    :argument => ':glid',
+    :bindings => [ :first_name, :last_name],
+    :sparql => <<-EOH
+select ?first_name ?last_name
+where
+{
+  ?person foaf:firstName ?first_name .
+  ?person foaf:lastName ?last_name .
+  ?person ufVivo:gatorlink ":glid"
+}
+EOH
   }
 ]
 
@@ -64,16 +78,24 @@ def jsonify(statements, bindings)
   json_results.to_json
 end
 
-get '/service/:api' do
-  result = ""
-  apis.each do |api|
-    if api[:path] == params[:api]
-      result = "Matched: people!\n"
+def argify(sparql, argument, value)
+  sparql.gsub(argument, value)
+end
+
+apis.each do |api|
+  if api[:argument].nil?
+    get "/service/#{api[:path]}" do
       result = execute_sparql(api[:sparql])
-      result = jsonify(result, api[:bindings])
-    else
-      result = 'If I knew what I was doing, this would be a 404 page.'
+      jsonify(result, api[:bindings])
+    end
+  else
+    get "/service/#{api[:path]}/#{api[:argument]}" do
+      puts "Api arg: #{api[:argument]}"
+      puts "Api arg value: #{params[api[:argument]]}"
+      param_argument = api[:argument][1, api[:argument].size]
+      sparql = argify(api[:sparql], api[:argument], params[param_argument])
+      result = execute_sparql(sparql)
+      jsonify(result, api[:bindings])
     end
   end
-  result
 end
